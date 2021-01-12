@@ -1,0 +1,13 @@
+name: paneuc-post
+channels:
+  - defaults
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.*
+  - snakemake
+  - pynvim
+  - git-annex
+  - r
+  - r-tidyverse
+  - r-remotes
