@@ -6,7 +6,7 @@ title: Filtering variants
 knitr::opts_chunk$set(engine.opts = list(bash = "-l"))
 ```
 
-First, make a tiny subset of the 
+First, make a tiny subset of the **MASSIVE** bcf.
 
 ```{bash}
 mkdir -p data/prefilter/demo
@@ -16,8 +16,8 @@ bcftools view -o data/prefilter/demo/tiny.vcf --regions 'Chr01:7000-7100' \
     data/origvariants/mpileup~bwa~E_melliodora~AdnatariaHighCoverage~filtered-default.vcf.gz
 ```
 
-
-First stage filter. Remove snps/indels within 20bp of indels, vars with > 80% missing data, vars with qual < 100. Normally, one would 
+First stage filter. Remove snps/indels within 20bp of indels, vars with > 80%
+missing data, vars with qual < 100.
 
 ```{bash}
 bcftools filter  \
@@ -30,8 +30,9 @@ bcftools filter  \
 bcftools view -H data/prefilter/demo/step1.vcf
 ```
 
-Before we can filter based on allele-specific things like MAF/MAC/AD, we need to split multiallelics to N biallelic sites for each of the N alternate alleles.
-
+Before we can filter based on allele-specific things like MAF/MAC/AD, we need
+to split multiallelics to N biallelic sites for each of the N alternate
+alleles.
 
 ```{bash}
 bcftools norm -m -snps  \
@@ -41,7 +42,9 @@ bcftools norm -m -snps  \
 bcftools view -H data/prefilter/demo/step2.vcf
 ```
 
-Now we can actually do filtering on alleles. Specifically, throw out alleles that: have fewer than a total of 20 reads supporting this allele, a MAF of < 2%, and fewer than 15 allele calls.
+Now we can actually do filtering on alleles. Specifically, throw out alleles
+that: have fewer than a total of 20 reads supporting this allele, a MAF of <2%,
+and fewer than 15 allele calls.
 
 ```{bash}
 bcftools filter \
@@ -53,7 +56,8 @@ bcftools filter \
 bcftools view -H data/prefilter/demo/step3.vcf
 ```
 
-Finally, join any remaining multiallelics back into actual multialleic sites (this is the inverse of the
+Finally, join any remaining multiallelics back into actual multiallelic sites
+(this is the inverse of the bcftools norm above).
 
 ```{bash}
 bcftools norm \
@@ -64,17 +68,19 @@ bcftools norm \
 bcftools view -H data/prefilter/demo/final.vcf
 ```
 
+Some stats:
+
 ```{bash}
 bcftools stats data/prefilter/demo/final.vcf
 ```
 
-# actual prefilter
+# Actual prefilter
 
-now tie it all together in one big command, including bcftools to exclude the repeats
+Now tie it all together in one big command, including bcftools to exclude the
+repeats.
 
 ```{bash}
 mkdir -p data/variants
-
 pv data/origvariants/mpileup~bwa~E_melliodora~AdnatariaHighCoverage~filtered-default.vcf.gz \
     | bedtools intersect \
         -sorted \
@@ -101,8 +107,6 @@ pv data/origvariants/mpileup~bwa~E_melliodora~AdnatariaHighCoverage~filtered-def
         -m +snps \
         -Oz \
         -o data/variants/AdnatariaHighCoverage_Emelref.norepeat.vcf.gz
-
 bcftools index data/variants/AdnatariaHighCoverage_Emelref.norepeat.vcf.gz
-
 ```
 
