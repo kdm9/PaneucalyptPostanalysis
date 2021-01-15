@@ -74,6 +74,7 @@ now tie it all together in one big command, including bcftools to exclude the re
 
 ```{bash}
 mkdir -p data/variants
+
 pv data/origvariants/mpileup~bwa~E_melliodora~AdnatariaHighCoverage~filtered-default.vcf.gz \
     | bedtools intersect \
         -sorted \
@@ -82,13 +83,16 @@ pv data/origvariants/mpileup~bwa~E_melliodora~AdnatariaHighCoverage~filtered-def
         -a - \
         -b data/origvariants/E_mell_canu_dip.fasta.repeatmask.bed \
     | bcftools filter  \
+        -Ou \
         --IndelGap 20 \
         --SnpGap 20 \
         -e 'F_MISSING > 0.8' \
         -e 'QUAL < 100' \
     | bcftools norm -m -snps  \
+        -Ou \
         -f data/origvariants/E_mell_canu_dip.fasta \
     | bcftools filter \
+        -Ou \
         -e "INFO/AD < 20" \
         -e "MAF < 0.02" \
         -e "INFO/AC < 15" \
