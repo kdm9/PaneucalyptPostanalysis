@@ -1,11 +1,12 @@
 name: paneuc-post
 channels:
-  - defaults
-  - conda-forge
   - bioconda
+  - defaults
 dependencies:
-  - python=3.*
+  - python
   - snakemake
+  - bcftools
+  - bedtools
   - pynvim
   - git-annex
   - r
