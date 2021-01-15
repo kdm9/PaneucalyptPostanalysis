@@ -1,0 +1,104 @@
+---
+title: Filtering variants
+---
+
+```{r setup}
+knitr::opts_chunk$set(engine.opts = list(bash = "-l"))
+```
+
+First, make a tiny subset of the 
+
+```{bash}
+mkdir -p data/prefilter/demo
+bcftools view -o data/prefilter/demo/orig.vcf.gz -Oz --regions 'Chr01:1-1000000' \
+    data/origvariants/mpileup~bwa~E_melliodora~AdnatariaHighCoverage~filtered-default.vcf.gz
+bcftools view -o data/prefilter/demo/tiny.vcf --regions 'Chr01:7000-7100' \
+    data/origvariants/mpileup~bwa~E_melliodora~AdnatariaHighCoverage~filtered-default.vcf.gz
+```
+
+
+First stage filter. Remove snps/indels within 20bp of indels, vars with > 80% missing data, vars with qual < 100. Normally, one would 
+
+```{bash}
+bcftools filter  \
+    --IndelGap 20 \
+    --SnpGap 20 \
+    -e 'F_MISSING > 0.8' \
+    -e 'QUAL < 100' \
+    -o data/prefilter/demo/step1.vcf \
+    data/prefilter/demo/tiny.vcf
+bcftools view -H data/prefilter/demo/step1.vcf
+```
+
+Before we can filter based on allele-specific things like MAF/MAC/AD, we need to split multiallelics to N biallelic sites for each of the N alternate alleles.
+
+
+```{bash}
+bcftools norm -m -snps  \
+    -f data/origvariants/E_mell_canu_dip.fasta \
+    -o data/prefilter/demo/step2.vcf \
+    data/prefilter/demo/step1.vcf
+bcftools view -H data/prefilter/demo/step2.vcf
+```
+
+Now we can actually do filtering on alleles. Specifically, throw out alleles that: have fewer than a total of 20 reads supporting this allele, a MAF of < 2%, and fewer than 15 allele calls.
+
+```{bash}
+bcftools filter \
+    -e "INFO/AD < 20" \
+    -e "MAF < 0.02" \
+    -e "INFO/AC < 15" \
+    -o data/prefilter/demo/step3.vcf \
+    data/prefilter/demo/step2.vcf
+bcftools view -H data/prefilter/demo/step3.vcf
+```
+
+Finally, join any remaining multiallelics back into actual multialleic sites (this is the inverse of the
+
+```{bash}
+bcftools norm \
+    --do-not-normalize \
+    -m +snps \
+    -o data/prefilter/demo/final.vcf \
+    data/prefilter/demo/step3.vcf
+bcftools view -H data/prefilter/demo/final.vcf
+```
+
+```{bash}
+bcftools stats data/prefilter/demo/final.vcf
+```
+
+# actual prefilter
+
+now tie it all together in one big command, including bcftools to exclude the repeats
+
+```{bash}
+mkdir -p data/variants
+pv data/origvariants/mpileup~bwa~E_melliodora~AdnatariaHighCoverage~filtered-default.vcf.gz \
+    | bedtools intersect \
+        -sorted \
+        -header \
+        -v \
+        -a - \
+        -b data/origvariants/E_mell_canu_dip.fasta.repeatmask.bed \
+    | bcftools filter  \
+        --IndelGap 20 \
+        --SnpGap 20 \
+        -e 'F_MISSING > 0.8' \
+        -e 'QUAL < 100' \
+    | bcftools norm -m -snps  \
+        -f data/origvariants/E_mell_canu_dip.fasta \
+    | bcftools filter \
+        -e "INFO/AD < 20" \
+        -e "MAF < 0.02" \
+        -e "INFO/AC < 15" \
+    | bcftools norm \
+        --do-not-normalize \
+        -m +snps \
+        -Oz \
+        -o data/variants/AdnatariaHighCoverage_Emelref.norepeat.vcf.gz
+
+bcftools index data/variants/AdnatariaHighCoverage_Emelref.norepeat.vcf.gz
+
+```
+
