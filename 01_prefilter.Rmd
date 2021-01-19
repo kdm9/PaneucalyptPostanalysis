@@ -83,6 +83,7 @@ repeats.
 mkdir -p data/variants
 pv data/origvariants/mpileup~bwa~E_melliodora~AdnatariaHighCoverage~filtered-default.vcf.gz \
     | bedtools intersect \
+        -nonamecheck \
         -sorted \
         -header \
         -v \
