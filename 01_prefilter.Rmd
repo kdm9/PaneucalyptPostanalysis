@@ -76,8 +76,8 @@ bcftools stats data/prefilter/demo/final.vcf
 
 # Actual prefilter
 
-Now tie it all together in one big command, including bcftools to exclude the
-repeats.
+Now tie it all together in one big command, including bedtools to exclude
+variants in repeats.
 
 ```{bash}
 mkdir -p data/variants
