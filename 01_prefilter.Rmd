@@ -111,3 +111,12 @@ pv data/origvariants/mpileup~bwa~E_melliodora~AdnatariaHighCoverage~filtered-def
 bcftools index data/variants/AdnatariaHighCoverage_Emelref.norepeat.vcf.gz
 ```
 
+
+# Stats etc 
+
+
+```{bash}
+bcftools stats data/variants/AdnatariaHighCoverage_Emelref.norepeat.vcf.gz \
+    > data/variants/AdnatariaHighCoverage_Emelref.norepeat.vcf.gz.stats
+```
+
