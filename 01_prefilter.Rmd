@@ -3,7 +3,7 @@ title: Filtering variants
 ---
 
 ```{r setup}
-knitr::opts_chunk$set(engine.opts = list(bash = "-l"))
+knitr::opts_chunk$set(engine.opts = list(bash = "-l"), eval=F)
 ```
 
 First, make a tiny subset of the **MASSIVE** bcf.

@@ -1,0 +1,290 @@
+---
+title: Euc exploratory analyeses
+---
+
+```{r setup, include=F}
+if (!require("tidyverse"))    { install.packages("tidyverse")     ; require("tidyverse")    }
+if (!require("foreach"))      { install.packages("foreach")       ; require("foreach")      }
+if (!require("doParallel"))   { install.packages("doParallel")    ; require("doParallel")   }
+if (!require("parallel"))     { install.packages("parallel")      ; require("parallel")     }
+if (!require("ggplot2"))      { install.packages("ggplot2")       ; require("ggplot2")      }
+if (!require("cowplot"))      { install.packages("cowplot")       ; require("cowplot")      }
+if (!require("ggrepel"))      { install.packages("ggrepel")       ; require("ggrepel")      }
+if (!require("ggmap"))        { install.packages("ggmap")         ; require("ggmap")        }
+if (!require("RColorBrewer")) { install.packages("RColorBrewer")  ; require("RColorBrewer") }
+if (!require("fossil"))       { install.packages("fossil")        ; require("fossil")       }
+if (!require("vegan"))        { install.packages("vegan")         ; require("vegan")        }
+if (!require("gdm"))          { install.packages("gdm")           ; require("gdm")          }
+if (!require("ecodist"))      { install.packages("ecodist")       ; require("ecodist")      }
+if (!require("SNPRelate"))    { BiocManager::install("SNPRelate") ; require("SNPRelate")    }
+```
+
+# Load geno data
+
+First convert genotypes to gds so we can use SNPrelate.
+
+```{r vcf2gds}
+if (!file.exists("data/variants/AdnatariaHighCoverage_Emelref.norepeat.gds")) {
+    snpgdsVCF2GDS("data/variants/AdnatariaHighCoverage_Emelref.norepeat.vcf.gz",
+                  "data/variants/AdnatariaHighCoverage_Emelref.norepeat.gds")
+}
+```
+
+
+Then, we get some super basic summary info like num and names of samples
+
+```{r gds.sum}
+gds = snpgdsOpen("data/variants/AdnatariaHighCoverage_Emelref.norepeat.gds", allow.duplicate=T)
+gds.sum = snpgdsSummary(gds)
+```
+
+
+# Metadata
+
+```{r meta}
+meta = read_csv("data/metadata/sample-metadata.csv") %>%
+	slice(match(gds.sum$sample.id, .$SampleID))
+table(meta$Species) %>% sort(dec=T)
+```
+
+We have `r nrow(meta)` samples across `r length(unique(meta$Species))` species
+across all of Adnataria. These samples in theory all have reasonably high
+coverage (about >8x) and were hard variant called with mpileup against the
+melliodora genome.
+
+For the rest of this notebook, we want to subset to just a few well-represented
+species we are doing genomes for (mel/sid/alb/conica/crebra) from their native
+range (SE Aust). 
+
+```{r samp.sel}
+au.bbox = c(left=135, right=155, top=-24, bottom=-40)
+selected.spp = c("Eucalyptus melliodora", "Eucalyptus albens", "Eucalyptus sideroxylon", "Eucalyptus conica")
+map.meta = meta %>%
+    filter(Latitude > au.bbox["bottom"], Latitude < au.bbox["top"], Longitude > au.bbox["left"], Longitude < au.bbox["right"]) %>%
+    filter(Species %in% selected.spp)
+selected.samp = map.meta %>%
+    pull(SampleID)
+```
+
+Keeping just these we get to `r length(selected.samp)` samples, out of 
+`r length(gds.sum$sample.id)` in total in the vcf.
+
+
+## Maps
+
+```{r map}
+basemap.terr = get_stamenmap(au.bbox, zoom=7, maptype="terrain-background")
+p =  ggmap(basemap.terr, darken=c(0.4, "white"), legend="topleft", extent="device")
+print(p)
+p + geom_point(aes(Longitude, Latitude, colour=Species), data=map.meta, alpha=1, size=2) +
+    labs(x="Longitude", y="Latitude") +
+    scale_colour_discrete(name="Species") + 
+    scale_colour_brewer(palette="Set1") +
+    theme_bw()
+```
+
+# Simple genetics on all spp
+
+First things first, get some basic snp stats
+
+```{r}
+srf = snpgdsSNPRateFreq(gds, sample.id=selected.samp)
+```
+
+As these SNPs have already been reasonably well filtered, so the distributions
+are pretty good. However, we'll put a basic missingness filter here (MD <=
+50%).
+
+```{r}
+hist(srf$MinorFreq)
+hist(srf$MissingRate)
+max.snp.missing.thresh = 0.5
+mean(srf$MissingRate <= max.snp.missing.thresh)
+```
+
+So 90% of SNPs pass this threshold, so we're not killing much data.
+
+
+```{r}
+samp.miss = snpgdsSampMissRate(gds, sample.id=selected.samp)
+hist(samp.miss, breaks=40)
+samp.miss.thresh = 0.23
+abline(v=samp.miss.thresh)
+mean(samp.miss < samp.miss.thresh)
+
+good.samples.allspp = selected.samp[samp.miss < samp.miss.thresh]
+```
+
+Again, samples are all pretty good, but there are a couple in the long tail of
+lower quality samples. Given we have so many I'm happy to just throw them out,
+to avoid weird artefacts (some have ~2x as much missing data as the mode, so
+could get grouped weirdly).
+
+```{r}
+save(samp.miss.thresh,
+     max.snp.missing.thresh,
+     good.samples.allspp,
+     meta,
+     map.meta,
+     file="data/cache/02_filterthresholds.Rda")
+```
+
+
+
+## PCA
+
+```{r pca}
+pca = snpgdsPCA(gds, sample.id=good.samples.allspp, remove.monosnp = T,
+                missing.rate = max.snp.missing.thresh, num.thread = 8,
+                algorithm = "exact", verbose = T, autosome.only = F)
+```
+
+```{r pca.plt}
+pca.plt.dat = pca$eigenvect %>%
+    as.data.frame() %>%
+    bind_cols(sample.id = pca$sample.id, .) %>%
+    rename_with(function(n) sub("V", "PC", n)) %>%
+    left_join(meta, by=c("sample.id"="SampleID"))
+
+ggplot(pca.plt.dat, aes(PC1, PC2)) +
+    geom_point(aes(colour=Species)) +
+    theme_bw()
+```
+
+
+## Per-species PCAs
+
+Run a pca per species. Later we select outliers somewhat manually.
+
+```{r}
+spp.pca = function(species, spp.samps = NULL)  {
+    if (is.null(spp.samps)) {
+    }
+    pca = snpgdsPCA(gds, sample.id=spp.samps, remove.monosnp = T,
+                    missing.rate = max.snp.missing.thresh, num.thread = 8,
+                    algorithm = "exact", verbose = T, autosome.only = F)
+
+    pca.plt.dat = pca$eigenvect %>%
+        as.data.frame() %>%
+        bind_cols(sample.id = pca$sample.id, .) %>%
+        rename_with(function(n) sub("V", "PC", n)) %>%
+        left_join(meta, by=c("sample.id"="SampleID"))
+
+    return(list(pca=pca, dat=pca.plt.dat, samp=spp.samps, spp=species))
+}
+
+plot.spp.pca = function(dat) {
+    scree.dat = data.frame(pc=1:ncol(dat$pca$eigenvect),
+                           vc=dat$pca$varprop[1:ncol(dat$pca$eigenvect)])
+    sp = ggplot(scree.dat, aes(pc, vc*100)) +
+        geom_line(group=1) +
+        labs(x="PC", y="% Var", title=sprintf("%s n=%d", dat$spp, length(dat$samp))) +
+        theme_classic()
+    mp = ggplot(dat$dat, aes(PC1, PC2)) +
+        geom_point(aes(colour=Latitude)) +
+        labs(title=sprintf("%s n=%d", dat$spp, length(dat$samp))) +
+        theme_bw()
+    return(list(sp=sp, mp=mp))
+}
+```
+
+### Eucalyptus melliodora
+
+```{r empca}
+em.samps = map.meta %>%
+    filter(Species == "Eucalyptus melliodora", SampleID %in% good.samples.allspp) %>%
+    pull(SampleID)
+em = spp.pca("Eucalyptus melliodora", spp.samps=em.samps)
+emp = plot.spp.pca(em)
+print(emp$mp)
+
+
+pca.thresh.em = em$dat %>%
+    mutate(is.outlier = PC1 < -0.05 | PC2 > 0.05)
+ggplot(pca.thresh.em, aes(PC1, PC2)) +
+    geom_point(aes(colour=Latitude, shape=is.outlier), size=3) +
+    scale_shape_manual(values=c(19, 4)) +
+    theme_bw()
+
+good.samp.em = pca.thresh.em %>%
+    filter(!is.outlier) %>%
+    pull(sample.id)
+em = spp.pca("Eucalyptus melliodora", spp.samps=good.samp.em)
+emp = plot.spp.pca(em)
+print(emp$mp)
+```
+
+In total, we have `r length(good.samp.em)` non-outlier *E. melliodora* samples.
+
+### Eucalyptus sideroxylon
+
+```{r espca}
+es.samps = map.meta %>%
+    filter(Species == "Eucalyptus sideroxylon", SampleID %in% good.samples.allspp) %>%
+    pull(SampleID)
+es = spp.pca("Eucalyptus sideroxylon", spp.samps=es.samps)
+esp = plot.spp.pca(es)
+print(esp$mp)
+
+
+pca.thresh.es = es$dat %>%
+    mutate(is.outlier = PC1 > 0.05)
+ggplot(pca.thresh.es, aes(PC1, PC2)) +
+    geom_point(aes(colour=Latitude, shape=is.outlier), size=3) +
+    scale_shape_manual(values=c(19, 4)) +
+    theme_bw()
+
+
+
+good.samp.es = pca.thresh.es %>%
+    filter(!is.outlier) %>%
+    pull(sample.id)
+es = spp.pca("Eucalyptus sideroxylon", spp.samps=good.samp.es)
+esp = plot.spp.pca(es)
+print(esp$mp)
+```
+
+In total, we have `r length(good.samp.es)` non-outlier *E. sideroxylon* samples.
+
+### Eucalyptus albens
+
+```{r}
+ea.samps = map.meta %>%
+    filter(Species == "Eucalyptus albens", SampleID %in% good.samples.allspp) %>%
+    pull(SampleID)
+ea = spp.pca("Eucalyptus albens", spp.samps=ea.samps)
+eap = plot.spp.pca(ea)
+print(eap$mp)
+```
+
+```{r}
+pca.thresh.ea = ea$dat %>%
+    mutate(is.outlier = PC1 > 0.05)
+ggplot(pca.thresh.ea, aes(PC1, PC2)) +
+    geom_point(aes(colour=Latitude, shape=is.outlier), size=3) +
+    scale_shape_manual(values=c(19, 4)) +
+    theme_bw()
+```
+
+```{r}
+good.samp.ea = pca.thresh.ea %>%
+    filter(!is.outlier) %>%
+    pull(sample.id)
+ea = spp.pca("Eucalyptus albens", spp.samps=good.samp.ea)
+eap = plot.spp.pca(ea)
+print(eap$mp)
+print(eap$sp)
+```
+
+
+### all spp pcas
+
+
+
+```{r}
+cowplot::plot_grid(emp$mp, esp$mp, eap$mp, ncol=2)
+ggsave("plot/02_species-level-pca.svg", width=7, height=(7/sqrt(2)))
+cowplot::plot_grid(emp$sp, esp$sp, eap$sp, ncol=2)
+ggsave("plot/02_species-level-pca-scree.svg", width=7, height=(7/sqrt(2)))
+```
+

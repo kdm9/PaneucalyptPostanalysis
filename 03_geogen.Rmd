@@ -1,0 +1,43 @@
+---
+title: Euc geo-genetic analyses
+---
+
+```{r setup, include=F}
+if (!require("tidyverse"))    { install.packages("tidyverse")     ; require("tidyverse")    }
+if (!require("foreach"))      { install.packages("foreach")       ; require("foreach")      }
+if (!require("doParallel"))   { install.packages("doParallel")    ; require("doParallel")   }
+if (!require("parallel"))     { install.packages("parallel")      ; require("parallel")     }
+if (!require("ggplot2"))      { install.packages("ggplot2")       ; require("ggplot2")      }
+if (!require("cowplot"))      { install.packages("cowplot")       ; require("cowplot")      }
+if (!require("ggrepel"))      { install.packages("ggrepel")       ; require("ggrepel")      }
+if (!require("ggmap"))        { install.packages("ggmap")         ; require("ggmap")        }
+if (!require("RColorBrewer")) { install.packages("RColorBrewer")  ; require("RColorBrewer") }
+if (!require("fossil"))       { install.packages("fossil")        ; require("fossil")       }
+if (!require("vegan"))        { install.packages("vegan")         ; require("vegan")        }
+if (!require("gdm"))          { install.packages("gdm")           ; require("gdm")          }
+if (!require("ecodist"))      { install.packages("ecodist")       ; require("ecodist")      }
+if (!require("SNPRelate"))    { BiocManager::install("SNPRelate") ; require("SNPRelate")    }
+```
+
+# Load geno data
+
+First convert genotypes to gds so we can use SNPrelate.
+
+```{r vcf2gds}
+if (!file.exists("data/variants/AdnatariaHighCoverage_Emelref.norepeat.gds")) {
+    snpgdsVCF2GDS("data/variants/AdnatariaHighCoverage_Emelref.norepeat.vcf.gz",
+                  "data/variants/AdnatariaHighCoverage_Emelref.norepeat.gds")
+}
+```
+
+
+Then, we get some super basic summary info like num and names of samples
+
+```{r gds.sum}
+gds = snpgdsOpen("data/variants/AdnatariaHighCoverage_Emelref.norepeat.gds", allow.duplicate=T)
+snpgdsSummary(gds)
+gds.sum = snpgdsSummary(gds)
+print(gds.sum)
+```
+
+
