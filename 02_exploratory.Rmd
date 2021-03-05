@@ -120,16 +120,6 @@ lower quality samples. Given we have so many I'm happy to just throw them out,
 to avoid weird artefacts (some have ~2x as much missing data as the mode, so
 could get grouped weirdly).
 
-```{r}
-save(samp.miss.thresh,
-     max.snp.missing.thresh,
-     good.samples.allspp,
-     meta,
-     map.meta,
-     file="data/cache/02_filterthresholds.Rda")
-```
-
-
 
 ## PCA
 
@@ -286,5 +276,20 @@ cowplot::plot_grid(emp$mp, esp$mp, eap$mp, ncol=2)
 ggsave("plot/02_species-level-pca.svg", width=7, height=(7/sqrt(2)))
 cowplot::plot_grid(emp$sp, esp$sp, eap$sp, ncol=2)
 ggsave("plot/02_species-level-pca-scree.svg", width=7, height=(7/sqrt(2)))
+```
+
+
+
+```{r}
+if (file.exists("data/cache/02_filterthresholds.Rda")) unlink("data/cache/02_filterthresholds.Rda")
+save(samp.miss.thresh,
+     max.snp.missing.thresh,
+     good.samples.allspp,
+     meta,
+     map.meta,
+     good.samp.em,
+     good.samp.es,
+     good.samp.ea,
+     file="data/cache/02_filterthresholds.Rda")
 ```
 

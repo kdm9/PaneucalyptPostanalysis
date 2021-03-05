@@ -40,4 +40,50 @@ gds.sum = snpgdsSummary(gds)
 print(gds.sum)
 ```
 
+```{r}
+load("data/cache/02_filterthresholds.Rda")
+```
+
+# Geography
+
+
+```{r}
+geodist = function(samps) {
+    print(samps)
+    ll = meta %>% 
+        slice(match(samps, SampleID)) %>%
+        dplyr::select(Longitude, Latitude) %>%
+        as.matrix()
+    rownames(ll) = samps
+    fossil::earth.dist(ll) %>%
+        as.matrix
+}
+```
+
+# Snp distances
+
+```{r}
+sppdist = function(samps, maf=0.1) {
+    ibs = snpgdsIBS(gds, sample.id = samps, maf = maf, missing.rate = max.snp.missing.thresh, num.thread = 8)
+    m = 1-ibs$ibs
+    colnames(m) = rownames(m) = ibs$sample.id
+    m
+}
+```
+
+
+# E melliodora basic stuff
+
+```{r emdist}
+dist.em = sppdist(good.samp.em)
+geo.dist.em = geodist(good.samp.em)
+```
+
+
+```{r}
+plot(dist.em ~ log10(geo.dist.em))
+
+```
+
+
 
