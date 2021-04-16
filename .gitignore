@@ -1,2 +1,6 @@
 *.html
 plot/
+.Rhistory
+.RData
+*_cache/
+*_files/
