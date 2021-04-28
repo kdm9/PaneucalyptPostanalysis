@@ -12,3 +12,5 @@ dependencies:
   - r
   - r-tidyverse
   - r-remotes
+  - jupytext
+  - scikit-allel
