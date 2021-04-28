@@ -14,3 +14,8 @@ dependencies:
   - r-remotes
   - jupytext
   - scikit-allel
+  - jupyter
+  - notebook
+  - bash_kernel
+  - parallel
+  - pv
