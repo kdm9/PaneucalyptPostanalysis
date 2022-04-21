@@ -28,41 +28,50 @@ fields=['samples', 'variants/CHROM', 'variants/POS', 'variants/REF',
 # Now convert the vcf to a zarr array. We save each reference's calls in their
 # own group (e.g. 'egrandis'), so we can have all three in the one zarr.
 # 
-# This takes ages.
+# This takes ages, and I do it in parallel with concurrent.futures
 
 
-allel.vcf_to_zarr(
-    "data/variants-acanthophis/enhanced_filter/mpileup~bwa~Egrandis_phytozome13_v2~enhanced_filter.vcf.gz",
-    "data/variants-acanthophis/mpileup~bwa~HBDecra.zarr",
-    group="egrandis",
-    compressor=zarr.Blosc(cname="zstd", clevel=5, shuffle=1),
-    fields=fields,
-    chunk_width=1000,
-    chunk_length=100000,
-    log=sys.stderr,
-)
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 
-allel.vcf_to_zarr(
-    "data/variants-acanthophis/enhanced_filter/mpileup~bwa~Emelliodora_GCA_004368105.2~enhanced_filter.vcf.gz",
-    "data/variants-acanthophis/mpileup~bwa~HBDecra.zarr",
-    group="emelliodora",
-    compressor=zarr.Blosc(cname="zstd", clevel=5, shuffle=1),
-    fields=fields,
-    chunk_width=1000,
-    chunk_length=100000,
-    log=sys.stderr,
-)
+with ProcessPoolExecutor(3) as exc:
+    jobs = []
 
+    jobs.append(exc.submit(
+        allel.vcf_to_zarr,
+        "data/variants-acanthophis/enhanced_filter/mpileup~bwa~Egrandis_phytozome13_v2~enhanced_filter.vcf.gz",
+        "data/variants-acanthophis/mpileup~bwa~HBDecra.zarr",
+        group="egrandis",
+        compressor=zarr.Blosc(cname="zstd", clevel=5, shuffle=1),
+        fields=fields,
+        chunk_width=1000,
+        chunk_length=100000,
+        #log=sys.stderr,
+    ))
 
-allel.vcf_to_zarr(
-    "data/variants-acanthophis/enhanced_filter/mpileup~bwa~Esideroxylon_GCA_014182405.1~enhanced_filter.vcf.gz",
-    "data/variants-acanthophis/mpileup~bwa~HBDecra.zarr",
-    group="esideroxylon",
-    compressor=zarr.Blosc(cname="zstd", clevel=5, shuffle=1),
-    fields=fields,
-    chunk_width=1000,
-    chunk_length=100000,
-    log=sys.stderr,
-)
+    jobs.append(exc.submit(
+        allel.vcf_to_zarr,
+        "data/variants-acanthophis/enhanced_filter/mpileup~bwa~Emelliodora_GCA_004368105.2~enhanced_filter.vcf.gz",
+        "data/variants-acanthophis/mpileup~bwa~HBDecra.zarr",
+        group="emelliodora",
+        compressor=zarr.Blosc(cname="zstd", clevel=5, shuffle=1),
+        fields=fields,
+        chunk_width=1000,
+        chunk_length=100000,
+        #log=sys.stderr,
+    ))
 
+    jobs.append(exc.submit(
+        allel.vcf_to_zarr,
+        "data/variants-acanthophis/enhanced_filter/mpileup~bwa~Esideroxylon_GCA_014182405.1~enhanced_filter.vcf.gz",
+        "data/variants-acanthophis/mpileup~bwa~HBDecra.zarr",
+        group="esideroxylon",
+        compressor=zarr.Blosc(cname="zstd", clevel=5, shuffle=1),
+        fields=fields,
+        chunk_width=1000,
+        chunk_length=100000,
+        #log=sys.stderr,
+    ))
+
+    for j in as_completed(jobs):
+        print("Done one")

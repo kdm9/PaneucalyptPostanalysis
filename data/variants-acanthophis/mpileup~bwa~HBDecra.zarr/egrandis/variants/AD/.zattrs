@@ -1,0 +1,6 @@
+{
+    "Description": "Total allelic depths (high-quality bases)",
+    "ID": "AD",
+    "Number": "R",
+    "Type": "Integer"
+}
